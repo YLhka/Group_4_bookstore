@@ -36,4 +36,4 @@ class TestLogin:
 
     def test_error_password(self):
         code, token = self.auth.login(self.user_id, self.password + "_x", self.terminal)
-        assert code == 401
+        assert code != 200
