@@ -1,0 +1,18 @@
+[run]
+branch = True
+source =
+    be
+    fe
+concurrency = thread
+
+[report]
+omit =
+    be/app.py
+    fe/bench/parse_results.py
+    fe/bench/run_benchmark.py
+    fe/bench/run.py
+    fe/test/test_bench.py
+    fe/bench/session.py
+    fe/bench/workload.py
+exclude_lines =
+    pragma: no cover
