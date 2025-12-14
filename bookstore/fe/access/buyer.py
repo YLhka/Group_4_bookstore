@@ -48,3 +48,32 @@ class Buyer:
         headers = {"token": self.token}
         r = requests.post(url, headers=headers, json=json)
         return r.status_code
+
+    # --- Extensions for compatibility with legacy tests ---
+    def cancel_order(self, order_id: str) -> int:
+        """Cancel an order (legacy test helper)."""
+        url = urljoin(self.url_prefix, "cancel_order")
+        headers = {"token": self.token}
+        json = {"user_id": self.user_id, "order_id": order_id}
+        r = requests.post(url, headers=headers, json=json)
+        try:
+            return r.status_code
+        except Exception:
+            return r.status_code
+
+    def search_book(self, keyword: str, store_id: str = None, page: int = 1, limit: int = 20):
+        """
+        Legacy search wrapper used by older tests.
+        Tests pass page,limit; convert to skip=(page-1)*limit.
+        """
+        from fe import conf
+        url = urljoin(conf.URL, "book/search")
+        skip = max(0, (page - 1) * limit)
+        params = {"q": keyword, "limit": limit, "skip": skip}
+        if store_id:
+            params["store_id"] = store_id
+        r = requests.get(url, params=params)
+        if r.status_code != 200:
+            return r.status_code, []
+        data = r.json()
+        return r.status_code, data.get("books", [])
