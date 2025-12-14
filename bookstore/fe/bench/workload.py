@@ -78,34 +78,62 @@ class Workload:
         return "store_s_{}_{}_{}".format(seller_no, i, self.uuid)
 
     def gen_database(self):
-        logging.info("load data")
+        logging.info("开始加载测试数据...")
+        logging.info(f"配置: {self.seller_num}个卖家, {self.store_num_per_user}个店铺/卖家, {self.book_num_per_store}本书/店铺")
+        
+        # 注册卖家并创建店铺
+        total_stores = self.seller_num * self.store_num_per_user
+        store_count = 0
         for i in range(1, self.seller_num + 1):
             user_id, password = self.to_seller_id_and_password(i)
+            logging.info(f"注册卖家 {i}/{self.seller_num}: {user_id}")
             seller = register_new_seller(user_id, password)
+            
             for j in range(1, self.store_num_per_user + 1):
                 store_id = self.to_store_id(i, j)
                 code = seller.create_store(store_id)
                 assert code == 200
                 self.store_ids.append(store_id)
                 self.book_ids[store_id] = []
+                store_count += 1
+                logging.info(f"创建店铺 {store_count}/{total_stores}: {store_id}")
+                
                 row_no = 0
-
+                books_added = 0
+                
                 while row_no < self.book_num_per_store:
                     books = self.book_db.get_book_info(row_no, self.batch_size)
                     if len(books) == 0:
                         break
+                    
                     for bk in books:
                         code = seller.add_book(store_id, self.stock_level, bk)
                         assert code == 200
                         self.book_ids[store_id].append(bk.id)
+                        books_added += 1
+                        
+                        # 每添加100本书显示一次进度
+                        if books_added % 100 == 0:
+                            logging.info(f"店铺 {store_id}: 已添加 {books_added}/{self.book_num_per_store} 本书...")
+                    
                     row_no = row_no + len(books)
-        logging.info("seller data loaded.")
+                
+                logging.info(f"店铺 {store_id}: 完成！共添加 {books_added} 本书")
+        
+        logging.info("卖家数据加载完成！")
+        
+        # 注册买家
+        logging.info(f"注册 {self.buyer_num} 个买家...")
         for k in range(1, self.buyer_num + 1):
             user_id, password = self.to_buyer_id_and_password(k)
             buyer = register_new_buyer(user_id, password)
             buyer.add_funds(self.user_funds)
             self.buyer_ids.append(user_id)
-        logging.info("buyer data loaded.")
+            if k % 5 == 0 or k == self.buyer_num:
+                logging.info(f"已注册买家 {k}/{self.buyer_num}...")
+        
+        logging.info("买家数据加载完成！")
+        logging.info(f"测试数据准备完成: {len(self.store_ids)}个店铺, {len(self.buyer_ids)}个买家")
 
     def get_new_order(self) -> NewOrder:
         n = random.randint(1, self.buyer_num)
@@ -124,6 +152,8 @@ class Workload:
                 book_temp.append(book_id)
                 count = random.randint(1, 10)
                 book_id_and_count.append((book_id, count))
+        # 注意：Buyer 的 __init__ 会立即进行 HTTP 登录请求
+        # 如果后端响应慢，这里可能会卡住
         b = Buyer(url_prefix=conf.URL, user_id=buyer_id, password=buyer_password)
         new_ord = NewOrder(b, store_id, book_id_and_count)
         return new_ord
